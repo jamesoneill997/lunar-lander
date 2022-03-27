@@ -11,7 +11,7 @@ class DeepQNetwork(nn.Module):
         self.fc1_dims = fc1_dims
         self.fc2_dims = fc2_dims
         self.n_actions = n_actions
-        self.fc1 = nn.Linear(*self.input_dims, fc1_dims) #star operator unpacks n dimension vector as first args
+        self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims) #star operator unpacks n dimension vector as first args
         self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims) 
         self.fc3 = nn.Linear(self.fc2_dims, self.n_actions)
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
@@ -22,10 +22,11 @@ class DeepQNetwork(nn.Module):
     def forward(self, state): #handles forward propagation
         tmp_action = F.relu(self.fc1(state))
         tmp_action = F.relu(self.fc2(tmp_action))
-        return self.fc3(tmp_action) #returns actions (raw estimate as it's not activated)
+        actions = self.fc3(tmp_action) #returns actions (raw estimate as it's not activated)
+        return actions
     
 class Agent():
-    def __init__(self, gamma, epsilon, learning_rate, input_dims, batch_size, n_actions, max_mem=100000, eps_min=0.01, eps_decr=5e-5):
+    def __init__(self, gamma, epsilon, learning_rate, input_dims, batch_size, n_actions, max_mem=100000, eps_min=0.01, eps_decr=5e-4):
         self.gamma = gamma #discount factor
         self.epsilon = epsilon #exploration rate
         self.learning_rate = learning_rate
@@ -71,7 +72,7 @@ class Agent():
 
         batch_index = np.arange(self.batch_size, dtype=np.float32)
         state_batch = T.tensor(self.state_mem[batch]).to(self.q_eval.device)
-        new_state_batch = T.tensor(self.state_mem[batch]).to(self.q_eval.device)
+        new_state_batch = T.tensor(self.new_state_mem[batch]).to(self.q_eval.device)
         reward_batch = T.tensor(self.r_mem[batch]).to(self.q_eval.device)
         terminal_batch = T.tensor(self.terminal_mem[batch]).to(self.q_eval.device)
         action_batch = self.action_mem[batch]
