@@ -4,9 +4,10 @@ import torch.nn.functional as F #RELU function
 import torch.optim as optim #optimiser
 import numpy as np
 
-class DeepQNetwork(nn.Module):
+#DeepQNetwork Implementation
+class DQN(nn.Module):
     def __init__(self, learning_rate, input_dims, fc1_dims, fc2_dims, n_actions):
-        super(DeepQNetwork, self).__init__() #calls constructor for base class 
+        super(DQN, self).__init__() #calls constructor for base class 
         self.input_dims = input_dims
         self.fc1_dims = fc1_dims
         self.fc2_dims = fc2_dims
@@ -18,13 +19,14 @@ class DeepQNetwork(nn.Module):
         self.loss = nn.MSELoss()
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device) #send entire net to device 
-        
+
     def forward(self, state): #handles forward propagation
         tmp_action = F.relu(self.fc1(state))
         tmp_action = F.relu(self.fc2(tmp_action))
         actions = self.fc3(tmp_action) #returns actions (raw estimate as it's not activated)
         return actions
     
+#Agent Implementation
 class Agent():
     def __init__(self, gamma, epsilon, learning_rate, input_dims, batch_size, n_actions, max_mem=100000, eps_min=0.01, eps_decr=5e-4):
         self.gamma = gamma #discount factor
@@ -36,7 +38,7 @@ class Agent():
         self.action_space = [i for i in range(n_actions)] #int representation of available actions (for use in greedy selection)
         self.mem_size = max_mem
         self.memory_counter = 0 #track first available memory
-        self.q_eval = DeepQNetwork(self.learning_rate, n_actions=n_actions, input_dims=input_dims, fc1_dims=256, fc2_dims=256) #DeepQNetwork
+        self.q_eval = DQN(self.learning_rate, n_actions=n_actions, input_dims=input_dims, fc1_dims=256, fc2_dims=256) #DQN instance
         self.state_mem = np.zeros((self.mem_size, *input_dims),dtype=np.float32) #memory storage
         self.new_state_mem = np.zeros((self.mem_size, *input_dims), dtype=np.float32) #used in temporal difference, compare new state to previous state
         self.action_mem = np.zeros(self.mem_size, dtype=np.int32)
@@ -70,6 +72,7 @@ class Agent():
         max_mem = min(self.memory_counter, self.mem_size) #select up to last filled memory
         batch = np.random.choice(max_mem, self.batch_size, replace=False)
 
+        #pass batch data to DQN device
         batch_index = np.arange(self.batch_size, dtype=np.float32)
         state_batch = T.tensor(self.state_mem[batch]).to(self.q_eval.device)
         new_state_batch = T.tensor(self.new_state_mem[batch]).to(self.q_eval.device)
@@ -77,14 +80,14 @@ class Agent():
         terminal_batch = T.tensor(self.terminal_mem[batch]).to(self.q_eval.device)
         action_batch = self.action_mem[batch]
 
+        #perform forward propagation
         q_eval = self.q_eval.forward(state_batch)[batch_index, action_batch]
         q_next = self.q_eval.forward(new_state_batch) #can implement target network here if required
 
         q_next[terminal_batch] = 0.0
-
         q_target = reward_batch + self.gamma * T.max(q_next, dim=1)[0] #returns value and index, get value
 
         loss = self.q_eval.loss(q_target, q_eval).to(self.q_eval.device)
         loss.backward()
         self.q_eval.optimizer.step()
-        self.epsilon = self.epsilon - self.eps_decr if self.epsilon > self.eps_min else self.eps_min
+        self.epsilon = self.epsilon - self.eps_decr if self.epsilon > self.eps_min else self.eps_min #decrement epsilon value if it's not already at the min
