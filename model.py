@@ -6,15 +6,20 @@ import numpy as np
 
 #DeepQNetwork Implementation
 class DQN(nn.Module):
-    def __init__(self, learning_rate, input_dims, fc1_dims, fc2_dims, n_actions):
-        super(DQN, self).__init__() #calls constructor for base class 
+    def __init__(self, learning_rate, input_dims, fc1_dims, fc2_dims, fc3_dims, n_actions):
+        super(DQN, self).__init__() #calls constructor for base class
+        #set layer dimensions
         self.input_dims = input_dims
         self.fc1_dims = fc1_dims
         self.fc2_dims = fc2_dims
+        self.fc3_dims = fc3_dims
         self.n_actions = n_actions
+        
+        #initialise layers
         self.fc1 = nn.Linear(*self.input_dims, self.fc1_dims) #star operator unpacks n dimension vector as first args
-        self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims) 
-        self.fc3 = nn.Linear(self.fc2_dims, self.n_actions)
+        self.fc2 = nn.Linear(self.fc1_dims, self.fc2_dims)
+        self.fc3 = nn.Linear(self.fc2_dims, self.fc3_dims)
+        self.fc4 = nn.Linear(self.fc2_dims, self.n_actions)
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         self.loss = nn.MSELoss()
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
@@ -23,7 +28,8 @@ class DQN(nn.Module):
     def forward(self, state): #handles forward propagation
         tmp_action = F.relu(self.fc1(state))
         tmp_action = F.relu(self.fc2(tmp_action))
-        actions = self.fc3(tmp_action) #returns actions (raw estimate as it's not activated)
+        tmp_action = F.relu(self.fc3(tmp_action))
+        actions = self.fc4(tmp_action) #returns actions (raw estimate as it's not activated)
         return actions
     
 #Agent Implementation
@@ -38,7 +44,7 @@ class Agent():
         self.action_space = [i for i in range(n_actions)] #int representation of available actions (for use in greedy selection)
         self.mem_size = max_mem
         self.memory_counter = 0 #track first available memory
-        self.q_eval = DQN(self.learning_rate, n_actions=n_actions, input_dims=input_dims, fc1_dims=256, fc2_dims=256) #DQN instance
+        self.q_eval = DQN(self.learning_rate, n_actions=n_actions, input_dims=input_dims, fc1_dims=512, fc2_dims=512, fc3_dims=512) #DQN instance
         self.state_mem = np.zeros((self.mem_size, *input_dims),dtype=np.float32) #memory storage
         self.new_state_mem = np.zeros((self.mem_size, *input_dims), dtype=np.float32) #used in temporal difference, compare new state to previous state
         self.action_mem = np.zeros(self.mem_size, dtype=np.int32)
